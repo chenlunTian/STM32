@@ -1,0 +1,197 @@
+/**
+  ************************************* Copyright ******************************
+  *
+  *                 (C) Copyright {2020},CLTian,China, SZ.
+  *                            All Rights Reserved
+  *
+  *
+  * FileName   : USART.C
+  * Version    : v1.0
+  * Author     : CLTian
+  * Date       : 2020-02-05
+  * Description:
+  * Function List:
+  ******************************************************************************
+ */
+#include "Usart.h"
+#include "Ringbuf.h"
+
+
+#ifdef __GNUC__
+#define PUTCHAR_PROTOTYPE int __io_putchar(int ch)
+#else
+#define PUTCHAR_PROTOTYPE int fputc(int ch, FILE *f)
+#endif /* __GNUC__ */
+
+PUTCHAR_PROTOTYPE
+{
+    /*選擇需要重定向的串口，此處選爲串口1*/
+    USART_SendData(USART1, (uint8_t) ch);
+    /* 等待串口发送寄存器为空 */
+    while (USART_GetFlagStatus(USART1, USART_FLAG_TC) == RESET)
+    {}
+    return ch;
+}
+
+/***********************************************************
+@函数名：UART_PutChar
+@入口参数：USARTx: 發送的串口
+**			 Data:發送的數據
+@出口参数：無
+@功能描述：串口發送字符
+@作者：CLTian
+@日期：2020-02-05
+*************************************************************/
+void UART_PutChar(USART_TypeDef* USARTx, uint8_t Data)
+{
+    USART_SendData(USARTx, Data);
+    while(USART_GetFlagStatus(USARTx, USART_FLAG_TC) == RESET) {}
+}
+
+/***********************************************************
+@函数名：UART_PutStr
+@入口参数：USARTx: 發送的串口
+**			 str: 發送的字符串
+@出口参数：無
+@功能描述：串口發送字符串
+@作者：CLTian
+@日期：2020-02-05
+*************************************************************/
+void UART_PutStr (USART_TypeDef* USARTx, uint8_t *str)    
+{
+    while (NULL != *str)
+    {
+        UART_PutChar(USARTx, *str);
+        str++;
+    }
+}
+
+//串口循环队列缓冲数据定义
+RingBuff_t COM1_Rx_Buf,COM2_Rx_Buf,COM3_Rx_Buf,COM4_Rx_Buf,COM5_Rx_Buf;
+
+/***********************************************************
+@函数名：USART1_Configuration
+@入口参数：BaudRate設定值（通常為9600  115200）
+@出口参数：無
+@功能描述：串口1初始化，USART1_TX -> PA9 , USART1_RX ->	PA10使
+用默認I/O（注意！！！與TIM1_CH2、TIM1_CH3復用）
+@作者：CLTian
+@日期：2020-02-05
+*************************************************************/
+void USART1_Configuration(uint32 BaudRate)
+{
+    GPIO_InitTypeDef GPIO_InitStructure;
+    USART_InitTypeDef USART_InitStructure;
+    NVIC_InitTypeDef NVIC_InitStructure;
+
+    RCC_APB2PeriphClockCmd( RCC_APB2Periph_GPIOA | RCC_APB2Periph_USART1,ENABLE);	//使能USART1，GPIOA时钟
+    /*
+    *  USART1_TX -> PA9 , USART1_RX ->	PA10使用默認I/O（注意！！！與TIM1_CH2、TIM1_CH3復用）
+    */
+    GPIO_InitStructure.GPIO_Pin = GPIO_Pin_9;
+    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF_PP;  //復用推挽
+    GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
+    GPIO_Init(GPIOA, &GPIO_InitStructure);
+
+    GPIO_InitStructure.GPIO_Pin = GPIO_Pin_10;
+    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IN_FLOATING; //浮空輸入
+    GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
+    GPIO_Init(GPIOA, &GPIO_InitStructure);
+
+    //Usart1 NVIC 配置
+    NVIC_InitStructure.NVIC_IRQChannel = USART1_IRQn;
+    NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority=3 ;//抢占优先级3
+    NVIC_InitStructure.NVIC_IRQChannelSubPriority = 3;		//子优先级3
+    NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;			//IRQ通道使能
+    NVIC_Init(&NVIC_InitStructure);	//根据指定的参数初始化NVIC寄存器
+
+    USART_InitStructure.USART_BaudRate = BaudRate;			//設置波特率
+    USART_InitStructure.USART_WordLength = USART_WordLength_8b;		//8位數據位
+    USART_InitStructure.USART_StopBits = USART_StopBits_1;				//1位停止位
+    USART_InitStructure.USART_Parity = USART_Parity_No;						//無校驗
+    USART_InitStructure.USART_HardwareFlowControl = USART_HardwareFlowControl_None;		//無流控
+    USART_InitStructure.USART_Mode = USART_Mode_Rx | USART_Mode_Tx;		//接收/發送模式
+
+    USART_Init(USART1, &USART_InitStructure);			//初始化串口1
+    USART_ITConfig(USART1, USART_IT_RXNE, ENABLE);		//開啓串口接收中斷
+    USART_ITConfig(USART1, USART_IT_TXE, ENABLE);			//開啓串口發送中斷
+    USART_ClearFlag(USART1,USART_FLAG_TC);
+    USART_Cmd(USART1, ENABLE);		//使能串口1
+}
+
+/***********************************************************
+@函数名：USART1_IRQHandler
+@入口参数：None
+@出口参数：None
+@功能描述：串口1中斷接收服務程序
+@作者：CLTian
+@日期：2020-02-05
+*************************************************************/
+void USART1_IRQHandler(void)
+{
+    if(USART_GetITStatus(USART1, USART_IT_RXNE) != RESET)  //判斷中斷接收標志
+    {
+        USART_ClearITPendingBit(USART1,USART_IT_RXNE);       //清除標志
+        RingBuf_Write(USART_ReceiveData(USART1),&COM1_Rx_Buf,USART1_Rx_Length);      //读取接收到的数据
+    }
+
+}
+
+/***********************************************************
+@函数名：USART1_Send
+@入口参数：uint8_t *pui8Buffer, uint32_t ui32Count
+@出口参数：无
+@功能描述：串口1發送N個字節數據
+@作者：CLTian
+@日期：2020-02-05
+*************************************************************/
+void USART1_Send(uint8_t *pui8Buffer, uint32_t ui32Count)
+{
+    while(ui32Count--)
+    {
+        UART_PutChar(USART1, *pui8Buffer++);
+    }
+}
+
+/***********************************************************
+@函数名：sendware
+@入口参数：unsigned char *wareaddr, int16_t waresize
+@出口参数：无
+@功能描述：山外虚拟示波器发送（需要使用那個串口更改如下發送
+函數即可）
+@作者：CLTian
+@日期：2020-02-05
+*************************************************************/
+void sendware(unsigned char *wareaddr, int16_t waresize)//山外发送波形
+{
+#define CMD_WARE     3
+    uint8 cmdf[2] = {CMD_WARE, ~CMD_WARE};//帧头
+    uint8 cmdr[2] = {~CMD_WARE, CMD_WARE};//帧尾
+    USART1_Send(cmdf, sizeof(cmdf));
+    USART1_Send(wareaddr, waresize);
+    USART1_Send(cmdr, sizeof(cmdr));
+}
+
+/***********************************************************
+@函数名：Vcan_Send
+@入口参数：无
+@出口参数：无
+@功能描述：山外数据发送函数，默认发送8个通道，数据类型为float
+，每个通道数据可以自己定义
+@作者：CLTian
+@日期：2020-02-05
+*************************************************************/
+void Vcan_Send(void)//山外地面站发送
+{
+    static float DataBuf[8];
+    	DataBuf[0]=0;
+      DataBuf[1]=0;
+      DataBuf[2]=0;
+      DataBuf[3]=0;
+      DataBuf[4]=0;
+      DataBuf[5]=0;
+      DataBuf[6]=0;
+      DataBuf[7]=0;
+		sendware((unsigned char *)DataBuf,sizeof(DataBuf));
+}
+
