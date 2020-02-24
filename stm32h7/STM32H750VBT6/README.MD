@@ -5,12 +5,19 @@ STM32FH750VBT6最小系统板
 
 ## 外设
 Quad SPI Flash   W25Qxx
+
 EEPROM  AT24Cxx
+
 USB TypeC
+
 Micro SD
+
 OLED 7针
+
 板载DC5.5x2.1转DIP小板，不喜欢可删除
+
 除USB和Quad SPI Flash外，所有IO均引出
+
 使用ALTIUM设计
 ## 板子信息
    **原理图**
