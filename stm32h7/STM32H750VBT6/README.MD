@@ -27,6 +27,8 @@ OLED 7针
    
 ![Image alt](https://github.com/chenlunTian/STM32/blob/master/stm32h7/STM32H750VBT6/png/PCB尺寸.png)
 ## 版权所有
+![Image alt](https://github.com/chenlunTian/STM32/blob/master/stm32h7/STM32H750VBT6/png/公众号.jpg)
 **作者：Designed by wsj&tzq**
 **（转载请注明出处，谢谢）**
+
 
