@@ -89,10 +89,6 @@ DItemRevisionGUID=
 GenerateClassCluster=0
 DocumentUniqueId=HGLELPRY
 
-[GeneratedDocument1]
-DocumentPath=Project Outputs for STM32H750VBT6\Design Rule Check - PCB1.html
-DItemRevisionGUID=
-
 [Configuration1]
 Name=Sources
 ParameterCount=0
